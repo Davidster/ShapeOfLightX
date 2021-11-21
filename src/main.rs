@@ -44,9 +44,9 @@ fn main() {
 
         println!("Number of LEDs: {:?}", controller.leds_mut(0).len());
 
-        // [G, R, B]
-        // let color = [182, 115, 233];
-        let color = [115.0, 182.0, 233.0];
+        
+        // [B, G, R]
+        let color = [233.0, 182.0, 115.0];
         let mut brightness = 0.0;
         let mut increasing = true;
         let mut i = 0;
@@ -88,10 +88,10 @@ fn main() {
             
             // println!("Brightness: {:?}, Color: {:?}", brightness, leds[30]);
             controller.render().unwrap();
-            brightness += (if increasing { 1.0 } else { -1.0 }) * 1.0 / 50.0;
-            if (brightness > 0.2 && increasing == true) {
+            brightness += (if increasing { 1.0 } else { -1.0 }) * 1.0 / 200.0;
+            if (brightness > 1.0 && increasing == true) {
                 increasing = false;
-                brightness = 0.2;
+                brightness = 1.0;
             }
             if (brightness < 0.0 && increasing == false) {
                 increasing = true;
