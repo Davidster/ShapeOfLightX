@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "ShapeOfLightX"
-version = "0.1.0"
-dependencies = [
- "ctrlc",
- "itertools",
- "rs_ws281x",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -239,6 +230,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "shape_of_light_x"
+version = "0.1.0"
+dependencies = [
+ "ctrlc",
+ "itertools",
+ "rs_ws281x",
 ]
 
 [[package]]
