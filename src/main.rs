@@ -40,6 +40,7 @@ const POWER_LIMIT_WATTS: f64 = POWER_SUPPLY_LIMIT_WATTS * POWER_UTILIZATION_LIMI
 */
 const WATTS_PER_LED: f64 = 45.0 / 150.0;
 const MAX_FULL_BRIGHTNESS_LEDS: f64 = POWER_LIMIT_WATTS / WATTS_PER_LED;
+// const MAX_FULL_BRIGHTNESS_LEDS: f64 = 1.0;
 type PixelColor = [u8; COLOR_CHANNELS];
 
 fn calc_color_with_brightness(color: &[f64; 3], brightness: f64) -> [u8; 3] {
@@ -55,6 +56,7 @@ fn calc_color_with_brightness(color: &[f64; 3], brightness: f64) -> [u8; 3] {
 fn main() {
     println!("MAX_FULL_BRIGHTNESS_LEDS={:?}", MAX_FULL_BRIGHTNESS_LEDS);
     print_colors_from_udp();
+    // brightness_breathe_animation();
 }
 
 fn make_controller() -> Controller {
@@ -159,7 +161,7 @@ fn brightness_breathe_animation() {
 
         // [B, G, R]
         let color = [255.0, 255.0, 255.0];
-        let max_brightness = 0.25;
+        let max_brightness = 1.0;
         let mut brightness = 0.0;
         let mut increasing = true;
         let mut i = 0;
