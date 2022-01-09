@@ -1,6 +1,6 @@
 ## RpiUdpListener
 
-Rust program meant to run on a Raspberry Pi that's connected to the LED lights. It listens to UDP messages on the local Wifi where each message contains the full list of colors to display. As soon as such a message is received, the lights are updated with the new values. It also includes some other utilities like some simple animations used for the `LedPosHelper` as well as limiting the total brightness of the LEDs so as to limit the power usage if necessary.
+Rust program meant to run on a Raspberry Pi that's connected some WS2812B LED lights. It listens to UDP messages on the local Wifi where each message contains the full list of colors to display. As soon as such a message is received, the lights are updated with the new values. It also includes some other utilities like some simple animations used for the `LedPosHelper` as well as limiting the total brightness of the LEDs so as to limit the power usage if necessary.
 
 ## LedPosHelper
 
@@ -22,10 +22,22 @@ https://user-images.githubusercontent.com/2389735/148658301-e69fe64c-c0df-4549-a
 
 Here are the particular products I used to get this project up and running:
 
-- 2 x 150 [Alitove 16.4ft WS2812B LEDs](https://www.amazon.ca/gp/product/B07FVPN3PH), for a total of 300 LEDs
-- [Raspberry Pi 2 Model B](https://www.raspberrypi.com/products/raspberry-pi-2-model-b/) with a Micro USB cable and AC adapter
-- [JOVNO 5V 15A AC Adapter](https://www.amazon.ca/gp/product/B08CZW6L1G)
-- [Some 18 Gauge Wires](https://www.amazon.ca/gp/product/B01LH1FQJ0)
-- [DC 5.5MM x 2.1MM Female Plug to Bare Wire Open End Power Wire](https://www.amazon.ca/gp/product/B08PYT6HZ2)
+- 2 x 150 [Alitove 16.4ft WS2812B LEDs](https://www.amazon.ca/gp/product/B07FVPN3PH), for a total of 300 LEDs:
 
-TODO: add pictures!
+![image](https://user-images.githubusercontent.com/2389735/148700921-a7084d02-b202-4a18-9cdc-1e6d8fda1c4b.png)
+
+- [Raspberry Pi 2 Model B](https://www.raspberrypi.com/products/raspberry-pi-2-model-b/) with a Micro USB cable and AC adapter:
+
+![image](https://user-images.githubusercontent.com/2389735/148700931-bfeb23c3-b007-404e-a098-3b46c5eb113a.png)
+
+- [JOVNO 5V 15A AC Adapter](https://www.amazon.ca/gp/product/B08CZW6L1G) (theoretically underpowered for 300 LEDs):
+
+![image](https://user-images.githubusercontent.com/2389735/148700940-b9913ae2-489a-4635-9c14-00756dbd02b5.png)
+
+- [Some 18 Gauge Wires](https://www.amazon.ca/gp/product/B01LH1FQJ0):
+
+![image](https://user-images.githubusercontent.com/2389735/148700948-1fc57524-ede5-41ab-a4cf-893d9ced3038.png)
+
+- [DC 5.5MM x 2.1MM Female Plug to Bare Wire Open End Power Wire](https://www.amazon.ca/gp/product/B08PYT6HZ2):
+
+![image](https://user-images.githubusercontent.com/2389735/148700960-43cf0873-e8f2-426b-b899-dbf2e587399a.png)
