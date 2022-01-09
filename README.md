@@ -14,7 +14,7 @@ This animation is similar to the one that's produced by the `animateRandomCrossS
 
 https://user-images.githubusercontent.com/2389735/148658290-517858ca-cf97-4016-84e2-2178caf471f5.mp4
 
-This animation uses the phone's tilt feature to control the lights, changing the pitch of the phone controls the position of the rainbow along the vertical axis of the tree, and changing the roll controls the level of [saturation](https://en.wikipedia.org/wiki/HSL_and_HSV) of the rainbow.
+This animation which is similar to the one produced by the `orientationRainbow` function in `TreeControllerApp/App.tsx` uses the phone's "tilt sensor" to control the lights, changing the pitch of the phone controls the position of the rainbow along the vertical axis of the tree, and changing the roll controls the level of [saturation](https://en.wikipedia.org/wiki/HSL_and_HSV) of the rainbow.
 
 https://user-images.githubusercontent.com/2389735/148658301-e69fe64c-c0df-4549-a96e-c3fb9146aea3.mp4
 
