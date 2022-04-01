@@ -1,3 +1,7 @@
+Clone of this project from stand up maths: https://www.youtube.com/watch?v=TvlpIojusBE.
+
+It is an set of applications that can be used to help map out the 3d coordinates of an array of LEDs on your christmas tree and then control and run some 3D-aware animations through your mobile phone.
+
 ## RpiUdpListener
 
 Rust program meant to run on a Raspberry Pi that's connected some WS2812B LED lights. It listens to UDP messages on the local Wifi where each message contains the full list of colors to display. As soon as such a message is received, the lights are updated with the new values. It also includes some other utilities like some simple animations used for the `LedPosHelper` as well as limiting the total brightness of the LEDs so as to limit the power usage if necessary.
