@@ -10,15 +10,28 @@ Rust program meant to run on a Raspberry Pi that's connected some WS2812B LED li
 
 Python program that displays images one by one and lets you click a certain location in each image (or refrain from doing so) and records your results in a json file. I took 4 videos of the tree while it was turning on the LEDs one by one, then converted the videos to lists of images (1 per frame), then ran `markLocations.py` once per video. The folder also includes a script `processResults.js` that converts the resulting coordinates from the various tree views into a best-guess 3D coordinate by using the results of the python program.
 
-The 3D positions of the lights for my tree can be seen on this [codepen](https://codepen.io/davidster/pen/rNGVPmJ)
+
 
 ## TreeControllerApp
 
-React native app meant to run on my Android phone (never tested iOS) which talks to the RpiUdpListener in order to control the lights. Unfortunately, this means that animations only work while the phone screen is on, as the app stops sending UDP messages as soon as you turn it off. Some sample animations can be seen below:
+React native app meant to run on my Android phone (never tested iOS) which talks to the RpiUdpListener in order to control the lights. Unfortunately, this means that animations only work while the phone screen is on, as the app stops sending UDP messages as soon as you turn it off. Some sample animations can be seen below.
+
+## Showcase
+
+### 3D points of the tree
+
+The 3D positions of the lights for my tree can be seen on this [codepen](https://codepen.io/davidster/pen/rNGVPmJ)
+
+
+https://user-images.githubusercontent.com/2389735/179577630-4e01d634-5dd8-4789-94b2-3ca10cc83314.mp4
+
+### Cross-section animation
 
 This animation is similar to the one that's produced by the `animateRandomCrossSections` function in `TreeControllerApp/App.tsx`, except that it uses a hardcoded direction for the plane to move in as opposed to a random one.
 
 https://user-images.githubusercontent.com/2389735/148658301-e69fe64c-c0df-4549-a96e-c3fb9146aea3.mp4
+
+### Phone-controlled animation
 
 This animation which is similar to the one produced by the `orientationRainbow` function in `TreeControllerApp/App.tsx` uses the phone's "tilt sensor" to control the lights, changing the pitch of the phone controls the position of the rainbow along the vertical axis of the tree, and changing the roll controls the level of [saturation](https://en.wikipedia.org/wiki/HSL_and_HSV) of the rainbow.
 
