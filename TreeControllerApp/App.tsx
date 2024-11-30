@@ -53,7 +53,7 @@ type FixedLedPosition = {
 const LED_COUNT = 300;
 const COLOR_CHANNELS = 4;
 const SOCKET_PORT = 34254;
-const RPI_IP = '192.168.2.87';
+const RPI_IP = '192.168.2.98';
 
 const normVec = (vec: number[]) =>
   Math.sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);

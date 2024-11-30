@@ -2,6 +2,11 @@
 
 set -e
 
+source ~/.bashrc
+
+export NODE_OPTIONS=--openssl-legacy-provider
+# make sure to run `jabba use zulu@1.15.0` first
+
 # from https://stackoverflow.com/questions/35283959/build-and-install-unsigned-apk-on-device-without-the-development-server
 # apk will be in android/app/build/outputs/apk/debug/app-debug.apk
 
