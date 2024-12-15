@@ -123,17 +123,25 @@ fn photograph_pixels() {
         let mut controller = make_controller();
 
         let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
-        let color = calc_color_with_brightness(&[255.0, 255.0, 255.0], 1.0);
-        colors[0] = color;
-        colors[275] = color;
+        let white = calc_color_with_brightness(&[255.0, 255.0, 255.0], 1.0);
+        // colors[0] = color;
+        // colors[275] = color;
 
         render(&mut controller, &colors.to_vec());
 
+        let mut counter = 0;
+
         loop {
-            if program_cancelled_2.load(Ordering::SeqCst) == true {
+            if program_cancelled_2.load(Ordering::SeqCst) || counter == LED_COUNT {
                 clear(&mut controller);
                 break;
             }
+
+            let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
+            let color = calc_color_with_brightness(&[255.0, 255.0, 255.0], 1.0);
+            colors[counter] = color;
+
+            counter += 1;
             thread::sleep(Duration::from_millis(500));
         }
     })
@@ -173,7 +181,7 @@ fn brightness_breathe_animation() {
         loop {
             let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
 
-            if program_cancelled_2.load(Ordering::SeqCst) == true {
+            if program_cancelled_2.load(Ordering::SeqCst) {
                 clear(&mut controller);
                 break;
             }
@@ -189,7 +197,7 @@ fn brightness_breathe_animation() {
             // println!("Brightness: {:?}, Color: {:?}", brightness, colors[30]);
             render(&mut controller, &colors.to_vec());
             brightness += (if increasing { 1.0 } else { -1.0 }) * max_brightness / 100.0;
-            if (brightness > max_brightness && increasing == true) {
+            if (brightness > max_brightness && increasing) {
                 increasing = false;
                 brightness = max_brightness;
             }
@@ -242,7 +250,7 @@ fn print_colors_from_udp() {
             .set_read_timeout(Some(Duration::from_millis(1000)))
             .unwrap();
         loop {
-            if program_cancelled_2.load(Ordering::SeqCst) == true {
+            if program_cancelled_2.load(Ordering::SeqCst) {
                 break;
             }
             let mut received_data = [0u8; LED_COUNT * COLOR_CHANNELS];
@@ -289,7 +297,7 @@ fn print_colors_from_udp() {
             let leds = controller.leds_mut(0);
             let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
 
-            if program_cancelled_3.load(Ordering::SeqCst) == true {
+            if program_cancelled_3.load(Ordering::SeqCst) {
                 clear(&mut controller);
                 break;
             }
@@ -326,7 +334,6 @@ fn print_colors_from_udp() {
                 let total_pixel_brightness = colors.to_vec().iter().fold(0.0, |acc, color| {
                     acc + color[0] as f64 + color[1] as f64 + color[2] as f64
                 }) / (255.0 * 3.0);
-            
 
                 let scale_down_factor = if total_pixel_brightness > MAX_FULL_BRIGHTNESS_LEDS {
                     MAX_FULL_BRIGHTNESS_LEDS / total_pixel_brightness
@@ -334,7 +341,7 @@ fn print_colors_from_udp() {
                     1.0
                 };
                 let scale_down = |val| (val as f64 * scale_down_factor).round() as u8;
-            
+
                 let scaled_colors: Vec<[u8; 3]> = colors
                     .to_vec()
                     .iter()
@@ -346,7 +353,7 @@ fn print_colors_from_udp() {
                         ]
                     })
                     .collect();
-            
+
                 let final_total_pixel_brightness = scaled_colors.iter().fold(0.0, |acc, color| {
                     acc + color[0] as f64 + color[1] as f64 + color[2] as f64
                 }) / (255.0 * 3.0);
