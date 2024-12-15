@@ -141,6 +141,8 @@ fn photograph_pixels() {
             let color = calc_color_with_brightness(&[255.0, 255.0, 255.0], 1.0);
             colors[counter] = color;
 
+            render(&mut controller, &colors.to_vec());
+
             counter += 1;
             thread::sleep(Duration::from_millis(500));
         }
