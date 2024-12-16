@@ -332,8 +332,9 @@ fn print_colors_from_udp() {
             render(&mut controller, &colors.to_vec());
             i += 1;
 
-            if (i % (TARGET_FPS as i32) == 0) {
+            if i % (10 * TARGET_FPS as i32) == 0 {
                 let fps = i as f32 / Instant::now().duration_since(start).as_secs_f32();
+
                 println!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
 
                 let total_pixel_brightness = colors.to_vec().iter().fold(0.0, |acc, color| {
