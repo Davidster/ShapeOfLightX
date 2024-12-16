@@ -5,6 +5,7 @@ use rs_ws281x::StripType;
 
 use itertools::Itertools;
 
+use std::io::ErrorKind;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
@@ -272,7 +273,9 @@ fn print_colors_from_udp() {
                     }
                 }
                 Err(err) => {
-                    println!("{:?}", err);
+                    if err.kind() != ErrorKind::WouldBlock {
+                        println!("{:?}", err);
+                    }
                 }
             }
         }
@@ -360,10 +363,10 @@ fn print_colors_from_udp() {
                     acc + color[0] as f64 + color[1] as f64 + color[2] as f64
                 }) / (255.0 * 3.0);
 
-                println!(
-                    "total_pixel_brightness={:?}, scale_down_factor={:?}, final_total_pixel_brightness={:?}",
-                    total_pixel_brightness, scale_down_factor, final_total_pixel_brightness
-                );
+                // println!(
+                //     "total_pixel_brightness={:?}, scale_down_factor={:?}, final_total_pixel_brightness={:?}",
+                //     total_pixel_brightness, scale_down_factor, final_total_pixel_brightness
+                // );
             }
 
             let now = Instant::now();
