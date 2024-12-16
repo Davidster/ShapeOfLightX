@@ -11,7 +11,8 @@ from os.path import isfile, join
 # with image per frame, and the image file names contain the frame number so they
 # can be sorted chronologically
 viewNumber = "4"
-path = f"/home/david/Videos/tree_{viewNumber}/frames"
+path = f"/home/david/Videos/tree_2024/tree_{viewNumber}/frames"
+# path = f"/home/david/Videos/tree_2024/tree_{viewNumber}/frames"
 
 onlyfiles = [f for f in listdir(path) if isfile(join(path, f))]
 onlyfiles.sort()
@@ -48,14 +49,14 @@ for file in onlyfiles:
     cv2.setMouseCallback('img', onMouseMove)
     key = cv2.waitKey(0)
     val = None
-    if key == 27:  # space bar
+    if key == 27:  # escape key
         quit()
     if key == 32:  # space bar
         val = currentMousePos
     imagePositionDict[file] = val
     print(f"Added {val} to {file}")
 
-with open(f"tree_{viewNumber}.json", 'w') as fp:
+with open(f"view_{viewNumber}_frames.json", 'w') as fp:
     json.dump(imagePositionDict, fp)
 
 # def on_click(event, x, y, p1, p2):
