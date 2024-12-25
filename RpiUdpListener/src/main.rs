@@ -55,7 +55,7 @@ fn calc_color_with_brightness(color: &[f64; 3], brightness: f64) -> [u8; 3] {
 
 fn main() {
     println!("MAX_FULL_BRIGHTNESS_LEDS={:?}", MAX_FULL_BRIGHTNESS_LEDS);
-    print_colors_from_udp();
+    start_http_server();
 }
 
 fn make_controller() -> Controller {
@@ -230,7 +230,7 @@ fn brightness_breathe_animation() {
     .unwrap();
 }
 
-fn print_colors_from_udp() {
+fn start_http_server() {
     let shared_array: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
     let shared_array_1 = shared_array.clone();
     let shared_array_2 = shared_array.clone();
@@ -240,13 +240,41 @@ fn print_colors_from_udp() {
     let program_cancelled_2 = program_cancelled.clone();
     let program_cancelled_3 = program_cancelled.clone();
 
+    let (http_server_shutdown_sender, http_server_shutdown_receiver) =
+        tokio::sync::oneshot::channel();
+
     ctrlc::set_handler(move || {
         println!("Program cancelled");
         program_cancelled_1.store(true, Ordering::SeqCst);
+        http_server_shutdown_sender.send(());
     })
     .expect("Error setting Ctrl-C handler");
 
-    let receiver_thread_handle = thread::spawn(move || {
+    let http_server_thread_handle = thread::spawn(move || {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(async {
+                let port = 8000;
+
+                let frontend_static_files =
+                    warp::path("treecontroller").and(warp::fs::dir("../TreeControllerWeb/dist"));
+
+                let hello = warp::path!("treecontroller-api" / "hello").map(|| "Hello from warp!");
+                let goodbye =
+                    warp::path!("treecontroller-api" / "goodbye").map(|| "Goodbye from warp!");
+
+                warp::serve(
+                    warp::fs::dir(workspace_root).with(warp::reply::with::headers(headers)),
+                )
+                .bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
+                    http_server_shutdown_receiver.await.ok();
+                })
+                .await;
+            });
+    });
+
+    let udp_server_thread_handle = thread::spawn(move || {
         let socket =
             UdpSocket::bind(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, SOCKET_PORT)).unwrap();
         socket
@@ -381,6 +409,7 @@ fn print_colors_from_udp() {
         }
     });
 
-    receiver_thread_handle.join().unwrap();
+    udp_server_thread_handle.join().unwrap();
     render_thread_handle.join().unwrap();
+    http_server_thread_handle.join().unwrap();
 }

@@ -9,3 +9,5 @@ edition = "2021"
 rs_ws281x = "0.4.2"
 ctrlc = "3.2.1"
 itertools = "0.10.1"
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
