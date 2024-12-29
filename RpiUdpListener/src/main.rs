@@ -368,7 +368,7 @@ fn start_http_server() {
             let received_color_array: Vec<PixelColor> =
                 shared_frame_2.lock().unwrap().drain(..).collect();
 
-            let received_animation_id = shared_animation_id_2.lock().unwrap();
+            let received_animation_id: usize = *shared_animation_id_2.lock().unwrap();
 
             if animation_id != received_animation_id {
                 animation_frame_counter = 0;
