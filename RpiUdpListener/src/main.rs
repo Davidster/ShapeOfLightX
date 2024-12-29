@@ -237,11 +237,14 @@ fn start_http_server() {
 
     let shared_array_udp: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
     let shared_array_udp_1 = shared_array_udp.clone();
+    #[cfg(feature = "rs_ws281x")]
     let shared_array_udp_2 = shared_array_udp.clone();
 
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
     let program_cancelled_2 = program_cancelled.clone();
+    #[cfg(feature = "rs_ws281x")]
+    let program_cancelled_3 = program_cancelled.clone();
 
     let http_server_thread_handle = {
         thread::spawn(move || {
