@@ -234,7 +234,6 @@ fn brightness_breathe_animation() {
 
 #[derive(Deserialize, Serialize, Default)]
 struct Animation {
-    id: usize,
     frames: Vec<Vec<PixelColor>>,
     should_loop: bool,
 }
