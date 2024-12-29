@@ -1,9 +1,5 @@
-use rs_ws281x::ChannelBuilder;
-use rs_ws281x::Controller;
-use rs_ws281x::ControllerBuilder;
-use rs_ws281x::StripType;
-
 use itertools::Itertools;
+use warp::Filter;
 
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
@@ -58,14 +54,15 @@ fn main() {
     start_http_server();
 }
 
-fn make_controller() -> Controller {
-    ControllerBuilder::new()
+#[cfg(feature = "rs_ws281x")]
+fn build_led_controller() -> rs_ws281x::Controller {
+    rs_ws281x::ControllerBuilder::new()
         .channel(
             0,
-            ChannelBuilder::new()
+            rs_ws281x::ChannelBuilder::new()
                 .pin(18)
                 .count(LED_COUNT as i32)
-                .strip_type(StripType::Ws2811Grb)
+                .strip_type(rs_ws281x::StripType::Ws2811Grb)
                 .brightness(255)
                 .build(),
         )
@@ -73,7 +70,8 @@ fn make_controller() -> Controller {
         .expect("Error creating LED controller")
 }
 
-fn clear(controller: &mut Controller) {
+#[cfg(feature = "rs_ws281x")]
+fn clear(controller: &mut rs_ws281x::Controller) {
     let leds = controller.leds_mut(0);
     for led_index in 0..leds.len() {
         leds[led_index] = [0, 0, 0, 0];
@@ -81,7 +79,8 @@ fn clear(controller: &mut Controller) {
     controller.render().unwrap();
 }
 
-fn render(controller: &mut Controller, colors: &Vec<[u8; 3]>) {
+#[cfg(feature = "rs_ws281x")]
+fn render(controller: &mut rs_ws281x::Controller, colors: &Vec<[u8; 3]>) {
     // measured in number of full brightness white pixels
     let total_pixel_brightness = colors.iter().fold(0.0, |acc, color| {
         acc + color[0] as f64 + color[1] as f64 + color[2] as f64
@@ -109,6 +108,7 @@ fn render(controller: &mut Controller, colors: &Vec<[u8; 3]>) {
     controller.render().unwrap();
 }
 
+#[cfg(feature = "rs_ws281x")]
 fn photograph_pixels() {
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
@@ -121,7 +121,7 @@ fn photograph_pixels() {
     .expect("Error setting Ctrl-C handler");
 
     thread::spawn(move || {
-        let mut controller = make_controller();
+        let mut controller = build_led_controller();
 
         let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
         let white = calc_color_with_brightness(&[255.0, 255.0, 255.0], 1.0);
@@ -152,6 +152,7 @@ fn photograph_pixels() {
     .unwrap();
 }
 
+#[cfg(feature = "rs_ws281x")]
 fn brightness_breathe_animation() {
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
@@ -164,7 +165,7 @@ fn brightness_breathe_animation() {
     .expect("Error setting Ctrl-C handler");
 
     thread::spawn(move || {
-        let mut controller = make_controller();
+        let mut controller = build_led_controller();
 
         println!("Number of LEDs: {:?}", controller.leds_mut(0).len());
 
@@ -240,39 +241,38 @@ fn start_http_server() {
     let program_cancelled_2 = program_cancelled.clone();
     let program_cancelled_3 = program_cancelled.clone();
 
-    let (http_server_shutdown_sender, http_server_shutdown_receiver) =
-        tokio::sync::oneshot::channel();
+    let http_server_thread_handle = {
+        thread::spawn(move || {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async {
+                    let port = 8000;
 
-    ctrlc::set_handler(move || {
-        println!("Program cancelled");
-        program_cancelled_1.store(true, Ordering::SeqCst);
-        http_server_shutdown_sender.send(());
-    })
-    .expect("Error setting Ctrl-C handler");
+                    let frontend_static_files = warp::fs::dir("../TreeControllerWeb/dist");
 
-    let http_server_thread_handle = thread::spawn(move || {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(async {
-                let port = 8000;
+                    let hello =
+                        warp::path!("treecontroller-api" / "hello").map(|| "Hello from warp!");
+                    let goodbye =
+                        warp::path!("treecontroller-api" / "goodbye").map(|| "Goodbye from warp!");
 
-                let frontend_static_files =
-                    warp::path("treecontroller").and(warp::fs::dir("../TreeControllerWeb/dist"));
+                    let (http_server_shutdown_sender, mut http_server_shutdown_receiver) =
+                        tokio::sync::mpsc::channel(8);
 
-                let hello = warp::path!("treecontroller-api" / "hello").map(|| "Hello from warp!");
-                let goodbye =
-                    warp::path!("treecontroller-api" / "goodbye").map(|| "Goodbye from warp!");
+                    let (_addr, server) = warp::serve(frontend_static_files.or(hello).or(goodbye))
+                        .bind_with_graceful_shutdown(([127, 0, 0, 1], port), async move {
+                            http_server_shutdown_receiver.recv().await;
+                        });
 
-                warp::serve(
-                    warp::fs::dir(workspace_root).with(warp::reply::with::headers(headers)),
-                )
-                .bind_with_graceful_shutdown(([127, 0, 0, 1], port), async {
-                    http_server_shutdown_receiver.await.ok();
-                })
-                .await;
-            });
-    });
+                    tokio::task::spawn(server);
+
+                    tokio::signal::ctrl_c().await.unwrap();
+                    program_cancelled_1.store(true, Ordering::SeqCst);
+                    http_server_shutdown_sender.send(()).await.unwrap();
+                });
+        })
+    };
 
     let udp_server_thread_handle = thread::spawn(move || {
         let socket =
@@ -301,7 +301,7 @@ fn start_http_server() {
                     }
                 }
                 Err(err) => {
-                    if err.kind() != ErrorKind::WouldBlock {
+                    if err.kind() != ErrorKind::WouldBlock && err.kind() != ErrorKind::TimedOut {
                         println!("{:?}", err);
                     }
                 }
@@ -309,8 +309,9 @@ fn start_http_server() {
         }
     });
 
-    let render_thread_handle = thread::spawn(move || {
-        let mut controller = make_controller();
+    #[cfg(feature = "rs_ws281x")]
+    let led_render_thread_handle = thread::spawn(move || {
+        let mut controller = build_led_controller();
 
         println!("LED_COUNT: {:?}", LED_COUNT);
         println!("Number of LEDs: {:?}", controller.leds_mut(0).len());
@@ -410,6 +411,7 @@ fn start_http_server() {
     });
 
     udp_server_thread_handle.join().unwrap();
-    render_thread_handle.join().unwrap();
+    #[cfg(feature = "rs_ws281x")]
+    led_render_thread_handle.join().unwrap();
     http_server_thread_handle.join().unwrap();
 }

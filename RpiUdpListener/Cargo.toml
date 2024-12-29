@@ -5,8 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+rs_ws281x = ["dep:rs_ws281x"]
+
 [dependencies]
-rs_ws281x = "0.4.2"
+rs_ws281x = { version = "0.4.2", optional = true }
 ctrlc = "3.2.1"
 itertools = "0.10.1"
 tokio = { version = "1", features = ["full"] }
