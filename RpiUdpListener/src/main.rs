@@ -253,7 +253,7 @@ fn start_http_server() {
     let shared_frame: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Default::default()));
     let shared_frame_1 = shared_frame.clone();
     #[cfg(feature = "rs_ws281x")]
-    let shared_frame_2 = shared_array_udp.clone();
+    let shared_frame_2 = shared_frame.clone();
 
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
@@ -455,7 +455,7 @@ fn start_http_server() {
                         (TARGET_FRAME_TIME - current_frame_time_nanos) as u64,
                     ));
                 } else {
-                    prinln!(
+                    println!(
                         "Warning: render took too long: {:?}",
                         now.duration_since(frame_start)
                     );
