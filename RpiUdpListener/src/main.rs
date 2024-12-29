@@ -293,6 +293,8 @@ fn start_http_server() {
                                 warp::reply()
                             });
 
+                        let cors = warp::cors().allow_any_origin();
+
                         let (http_server_shutdown_sender, mut http_server_shutdown_receiver) =
                             tokio::sync::mpsc::channel(8);
 
@@ -300,7 +302,8 @@ fn start_http_server() {
                             frontend_static_files
                                 .or(hello)
                                 .or(goodbye)
-                                .or(post_animation),
+                                .or(post_animation)
+                                .with(cors),
                         )
                         .bind_with_graceful_shutdown(([0, 0, 0, 0], port), async move {
                             http_server_shutdown_receiver.recv().await;
