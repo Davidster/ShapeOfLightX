@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use warp::Filter;
 
 use std::io::ErrorKind;
@@ -231,14 +232,28 @@ fn brightness_breathe_animation() {
     .unwrap();
 }
 
-fn start_http_server() {
-    let shared_array_http: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
-    let shared_array_http_1 = shared_array_http.clone();
+#[derive(Deserialize, Serialize, Default)]
+struct Animation {
+    id: usize,
+    frames: Vec<Vec<PixelColor>>,
+    should_loop: bool,
+}
 
-    let shared_array_udp: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
-    let shared_array_udp_1 = shared_array_udp.clone();
+fn start_http_server() {
+    let shared_animation_id: Arc<Mutex<usize>> = Arc::new(Mutex::new(Default::default()));
+    let shared_animation_id_1 = shared_animation_id.clone();
     #[cfg(feature = "rs_ws281x")]
-    let shared_array_udp_2 = shared_array_udp.clone();
+    let shared_animation_id_2 = shared_animation_id.clone();
+
+    let shared_animation: Arc<Mutex<Animation>> = Arc::new(Mutex::new(Default::default()));
+    let shared_animation_1 = shared_animation.clone();
+    #[cfg(feature = "rs_ws281x")]
+    let shared_animation_2 = shared_animation.clone();
+
+    let shared_frame: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Default::default()));
+    let shared_frame_1 = shared_frame.clone();
+    #[cfg(feature = "rs_ws281x")]
+    let shared_frame_2 = shared_array_udp.clone();
 
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
@@ -246,38 +261,60 @@ fn start_http_server() {
     #[cfg(feature = "rs_ws281x")]
     let program_cancelled_3 = program_cancelled.clone();
 
-    let http_server_thread_handle = {
-        thread::spawn(move || {
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(async {
-                    let port = 8000;
+    let http_server_thread_handle =
+        {
+            thread::spawn(move || {
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        let port = 8000;
 
-                    let frontend_static_files = warp::fs::dir("../TreeControllerWeb/dist");
+                        let frontend_static_files = warp::fs::dir("../TreeControllerWeb/dist");
 
-                    let hello =
-                        warp::path!("treecontroller-api" / "hello").map(|| "Hello from warp!");
-                    let goodbye =
-                        warp::path!("treecontroller-api" / "goodbye").map(|| "Goodbye from warp!");
+                        let hello =
+                            warp::path!("treecontroller-api" / "hello").map(|| "Hello from warp!");
+                        let goodbye = warp::path!("treecontroller-api" / "goodbye")
+                            .map(|| "Goodbye from warp!");
 
-                    let (http_server_shutdown_sender, mut http_server_shutdown_receiver) =
-                        tokio::sync::mpsc::channel(8);
+                        let post_animation = warp::post()
+                            .and(warp::path!("treecontroller-api" / "animation"))
+                            .and(warp::body::content_length_limit(
+                                // max animation length of ~1 second?
+                                std::mem::size_of::<[u8; LED_COUNT * (COLOR_CHANNELS * 2) * 3000]>(
+                                )
+                                .try_into()
+                                .unwrap(),
+                            ))
+                            .and(warp::body::json())
+                            .map(move |animation: Animation| {
+                                *shared_animation_1.lock().unwrap() = animation;
+                                *shared_animation_id_1.lock().unwrap() += 1;
+                                warp::reply()
+                            });
 
-                    let (_addr, server) = warp::serve(frontend_static_files.or(hello).or(goodbye))
+                        let (http_server_shutdown_sender, mut http_server_shutdown_receiver) =
+                            tokio::sync::mpsc::channel(8);
+
+                        let (_addr, server) = warp::serve(
+                            frontend_static_files
+                                .or(hello)
+                                .or(goodbye)
+                                .or(post_animation),
+                        )
                         .bind_with_graceful_shutdown(([0, 0, 0, 0], port), async move {
                             http_server_shutdown_receiver.recv().await;
                         });
 
-                    tokio::task::spawn(server);
+                        tokio::task::spawn(server);
 
-                    tokio::signal::ctrl_c().await.unwrap();
-                    program_cancelled_1.store(true, Ordering::SeqCst);
-                    http_server_shutdown_sender.send(()).await.unwrap();
-                });
-        })
-    };
+                        tokio::signal::ctrl_c().await.unwrap();
+                        program_cancelled_1.store(true, Ordering::SeqCst);
+                        http_server_shutdown_sender.send(()).await.unwrap();
+                    });
+            })
+        };
 
     let udp_server_thread_handle = thread::spawn(move || {
         let socket =
@@ -299,7 +336,7 @@ fn start_http_server() {
                         .tuples::<(u8, u8, u8, u8)>()
                         .map(|(r, g, b, a)| [r, g, b, a])
                         .collect();
-                    *shared_array_udp_1.lock().unwrap() = received_colors;
+                    *shared_frame_1.lock().unwrap() = received_colors;
                 }
                 Err(err) => {
                     if err.kind() != ErrorKind::WouldBlock && err.kind() != ErrorKind::TimedOut {
@@ -314,18 +351,10 @@ fn start_http_server() {
     let led_render_thread_handle = thread::spawn(move || {
         let mut controller = build_led_controller();
 
-        println!("LED_COUNT: {:?}", LED_COUNT);
-        println!("Number of LEDs: {:?}", controller.leds_mut(0).len());
+        assert_eq!(LED_COUNT, controller.leds_mut(0).len(), "LED_COUNT variable should be equal to the number of LEDs we're connected to. Something seems to be misconfigured");
 
-        // [B, G, R]
-        let color = [233.0, 182.0, 115.0];
-        let mut i = 0;
-
-        let start = Instant::now();
-
-        //  max is about 159 on rpi
-        let TARGET_FPS: f64 = 60.0;
-        let TARGET_FRAME_TIME: u128 = (1_000_000_000.0 / TARGET_FPS).round() as u128;
+        let mut animation_frame_counter = 0;
+        let mut animation_id = 0;
 
         loop {
             let frame_start = Instant::now();
@@ -337,7 +366,36 @@ fn start_http_server() {
             }
 
             let received_color_array: Vec<PixelColor> =
-                shared_array_udp_2.lock().unwrap().drain(..).collect();
+                shared_frame_2.lock().unwrap().drain(..).collect();
+
+            let received_animation_id = shared_animation_id_2.lock().unwrap();
+
+            if animation_id != received_animation_id {
+                animation_frame_counter = 0;
+                animation_id = received_animation_id;
+            }
+
+            let received_animation_frame = {
+                let received_animation = shared_animation_2.lock().unwrap();
+
+                match received_animation.frames.is_empty() {
+                    false => {
+                        if !received_animation.should_loop
+                            && animation_frame_counter == received_animation.frames.len()
+                        {
+                            None
+                        } else {
+                            let frame_index = if received_animation.should_loop {
+                                animation_frame_counter & received_animation.frames.len()
+                            } else {
+                                animation_frame_counter.min(received_animation.frames.len() - 1)
+                            };
+                            Some(received_animation.frames[frame_index].clone())
+                        }
+                    }
+                    true => None,
+                }
+            };
 
             if !received_color_array.is_empty() {
                 let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
@@ -360,55 +418,50 @@ fn start_http_server() {
                 }
 
                 render(&mut controller, &colors.to_vec());
-                i += 1;
+            } else if received_animation_frame.is_some() {
+                let received_animation_frame = received_animation_frame.unwrap();
 
-                if i % (10 * TARGET_FPS as i32) == 0 {
-                    let fps = i as f32 / Instant::now().duration_since(start).as_secs_f32();
+                let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
 
-                    println!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
-
-                    let total_pixel_brightness = colors.to_vec().iter().fold(0.0, |acc, color| {
-                        acc + color[0] as f64 + color[1] as f64 + color[2] as f64
-                    }) / (255.0 * 3.0);
-
-                    let scale_down_factor = if total_pixel_brightness > MAX_FULL_BRIGHTNESS_LEDS {
-                        MAX_FULL_BRIGHTNESS_LEDS / total_pixel_brightness
+                for led_index in 0..colors.len() {
+                    if led_index < received_color_array.len() {
+                        let received_color = received_animation_frame[led_index];
+                        // println!("final_color = {:?}", final_color);
+                        colors[led_index] = calc_color_with_brightness(
+                            &[
+                                received_color[0] as f64,
+                                received_color[1] as f64,
+                                received_color[2] as f64,
+                            ],
+                            (received_color[3] as f64) / 255.0,
+                        );
                     } else {
-                        1.0
-                    };
-                    let scale_down = |val| (val as f64 * scale_down_factor).round() as u8;
-
-                    let scaled_colors: Vec<[u8; 3]> = colors
-                        .to_vec()
-                        .iter()
-                        .map(|color| {
-                            [
-                                scale_down(color[0]),
-                                scale_down(color[1]),
-                                scale_down(color[2]),
-                            ]
-                        })
-                        .collect();
-
-                    let final_total_pixel_brightness =
-                        scaled_colors.iter().fold(0.0, |acc, color| {
-                            acc + color[0] as f64 + color[1] as f64 + color[2] as f64
-                        }) / (255.0 * 3.0);
-
-                    // println!(
-                    //     "total_pixel_brightness={:?}, scale_down_factor={:?}, final_total_pixel_brightness={:?}",
-                    //     total_pixel_brightness, scale_down_factor, final_total_pixel_brightness
-                    // );
+                        colors[led_index] = [0, 0, 0];
+                    }
                 }
-            }
 
-            let now = Instant::now();
-            let current_frame_time_nanos = now.duration_since(frame_start).as_nanos();
+                render(&mut controller, &colors.to_vec());
 
-            if (current_frame_time_nanos < TARGET_FRAME_TIME) {
-                thread::sleep(Duration::from_nanos(
-                    (TARGET_FRAME_TIME - current_frame_time_nanos) as u64,
-                ));
+                animation_frame_counter += 1;
+
+                let now = Instant::now();
+                let current_frame_time_nanos = now.duration_since(frame_start).as_nanos();
+
+                let TARGET_FPS: f64 = 60.0;
+                let TARGET_FRAME_TIME: u128 = (1_000_000_000.0 / TARGET_FPS).round() as u128;
+
+                if (current_frame_time_nanos < TARGET_FRAME_TIME) {
+                    spin_sleep::sleep(Duration::from_nanos(
+                        (TARGET_FRAME_TIME - current_frame_time_nanos) as u64,
+                    ));
+                } else {
+                    prinln!(
+                        "Warning: render took too long: {:?}",
+                        now.duration_since(frame_start)
+                    );
+                }
+            } else {
+                spin_sleep::sleep(Duration::from_millis(30));
             }
         }
     });
