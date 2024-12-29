@@ -365,7 +365,7 @@ fn start_http_server() {
                 break;
             }
 
-            let received_color_array: Vec<PixelColor> =
+            let received_udp_frame: Vec<PixelColor> =
                 shared_frame_2.lock().unwrap().drain(..).collect();
 
             let received_animation_id: usize = *shared_animation_id_2.lock().unwrap();
@@ -397,35 +397,22 @@ fn start_http_server() {
                 }
             };
 
-            if !received_color_array.is_empty() {
+            if received_animation_frame.is_some() {
+                animation_frame_counter += 1;
+            }
+
+            let chosen_frame = if !received_udp_frame.is_empty() {
+                Some(received_udp_frame)
+            } else {
+                received_animation_frame
+            };
+
+            if let Some(frame) = chosen_frame {
                 let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
 
                 for led_index in 0..colors.len() {
-                    if led_index < received_color_array.len() {
-                        let received_color = received_color_array[led_index];
-                        // println!("final_color = {:?}", final_color);
-                        colors[led_index] = calc_color_with_brightness(
-                            &[
-                                received_color[0] as f64,
-                                received_color[1] as f64,
-                                received_color[2] as f64,
-                            ],
-                            (received_color[3] as f64) / 255.0,
-                        );
-                    } else {
-                        colors[led_index] = [0, 0, 0];
-                    }
-                }
-
-                render(&mut controller, &colors.to_vec());
-            } else if received_animation_frame.is_some() {
-                let received_animation_frame = received_animation_frame.unwrap();
-
-                let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
-
-                for led_index in 0..colors.len() {
-                    if led_index < received_color_array.len() {
-                        let received_color = received_animation_frame[led_index];
+                    if led_index < frame.len() {
+                        let received_color = frame[led_index];
                         // println!("final_color = {:?}", final_color);
                         colors[led_index] = calc_color_with_brightness(
                             &[
