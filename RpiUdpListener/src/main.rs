@@ -232,14 +232,16 @@ fn brightness_breathe_animation() {
 }
 
 fn start_http_server() {
-    let shared_array: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
-    let shared_array_1 = shared_array.clone();
-    let shared_array_2 = shared_array.clone();
+    let shared_array_http: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
+    let shared_array_http_1 = shared_array_http.clone();
+
+    let shared_array_udp: Arc<Mutex<Vec<PixelColor>>> = Arc::new(Mutex::new(Vec::new()));
+    let shared_array_udp_1 = shared_array_udp.clone();
+    let shared_array_udp_2 = shared_array_udp.clone();
 
     let program_cancelled = Arc::new(AtomicBool::new(false));
     let program_cancelled_1 = program_cancelled.clone();
     let program_cancelled_2 = program_cancelled.clone();
-    let program_cancelled_3 = program_cancelled.clone();
 
     let http_server_thread_handle = {
         thread::spawn(move || {
@@ -294,11 +296,7 @@ fn start_http_server() {
                         .tuples::<(u8, u8, u8, u8)>()
                         .map(|(r, g, b, a)| [r, g, b, a])
                         .collect();
-                    // println!("received {:?} colors", received_colors.len());
-                    {
-                        let mut shared_array = shared_array_1.lock().unwrap();
-                        *shared_array = received_colors;
-                    }
+                    *shared_array_udp_1.lock().unwrap() = received_colors;
                 }
                 Err(err) => {
                     if err.kind() != ErrorKind::WouldBlock && err.kind() != ErrorKind::TimedOut {
@@ -329,74 +327,76 @@ fn start_http_server() {
         loop {
             let frame_start = Instant::now();
             let leds = controller.leds_mut(0);
-            let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
 
             if program_cancelled_3.load(Ordering::SeqCst) {
                 clear(&mut controller);
                 break;
             }
 
-            let received_color_array: Vec<PixelColor> = {
-                let shared_array = shared_array_2.lock().unwrap();
-                shared_array.to_vec()
-            };
+            let received_color_array: Vec<PixelColor> =
+                shared_array_udp_2.lock().unwrap().drain(..).collect();
 
-            for led_index in 0..colors.len() {
-                if led_index < received_color_array.len() {
-                    let received_color = received_color_array[led_index];
-                    // println!("final_color = {:?}", final_color);
-                    colors[led_index] = calc_color_with_brightness(
-                        &[
-                            received_color[0] as f64,
-                            received_color[1] as f64,
-                            received_color[2] as f64,
-                        ],
-                        (received_color[3] as f64) / 255.0,
-                    );
-                } else {
-                    colors[led_index] = [0, 0, 0];
+            if !received_color_array.is_empty() {
+                let mut colors: [[u8; 3]; LED_COUNT] = [[0; 3]; LED_COUNT];
+
+                for led_index in 0..colors.len() {
+                    if led_index < received_color_array.len() {
+                        let received_color = received_color_array[led_index];
+                        // println!("final_color = {:?}", final_color);
+                        colors[led_index] = calc_color_with_brightness(
+                            &[
+                                received_color[0] as f64,
+                                received_color[1] as f64,
+                                received_color[2] as f64,
+                            ],
+                            (received_color[3] as f64) / 255.0,
+                        );
+                    } else {
+                        colors[led_index] = [0, 0, 0];
+                    }
                 }
-            }
 
-            render(&mut controller, &colors.to_vec());
-            i += 1;
+                render(&mut controller, &colors.to_vec());
+                i += 1;
 
-            if i % (10 * TARGET_FPS as i32) == 0 {
-                let fps = i as f32 / Instant::now().duration_since(start).as_secs_f32();
+                if i % (10 * TARGET_FPS as i32) == 0 {
+                    let fps = i as f32 / Instant::now().duration_since(start).as_secs_f32();
 
-                println!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
+                    println!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
 
-                let total_pixel_brightness = colors.to_vec().iter().fold(0.0, |acc, color| {
-                    acc + color[0] as f64 + color[1] as f64 + color[2] as f64
-                }) / (255.0 * 3.0);
+                    let total_pixel_brightness = colors.to_vec().iter().fold(0.0, |acc, color| {
+                        acc + color[0] as f64 + color[1] as f64 + color[2] as f64
+                    }) / (255.0 * 3.0);
 
-                let scale_down_factor = if total_pixel_brightness > MAX_FULL_BRIGHTNESS_LEDS {
-                    MAX_FULL_BRIGHTNESS_LEDS / total_pixel_brightness
-                } else {
-                    1.0
-                };
-                let scale_down = |val| (val as f64 * scale_down_factor).round() as u8;
+                    let scale_down_factor = if total_pixel_brightness > MAX_FULL_BRIGHTNESS_LEDS {
+                        MAX_FULL_BRIGHTNESS_LEDS / total_pixel_brightness
+                    } else {
+                        1.0
+                    };
+                    let scale_down = |val| (val as f64 * scale_down_factor).round() as u8;
 
-                let scaled_colors: Vec<[u8; 3]> = colors
-                    .to_vec()
-                    .iter()
-                    .map(|color| {
-                        [
-                            scale_down(color[0]),
-                            scale_down(color[1]),
-                            scale_down(color[2]),
-                        ]
-                    })
-                    .collect();
+                    let scaled_colors: Vec<[u8; 3]> = colors
+                        .to_vec()
+                        .iter()
+                        .map(|color| {
+                            [
+                                scale_down(color[0]),
+                                scale_down(color[1]),
+                                scale_down(color[2]),
+                            ]
+                        })
+                        .collect();
 
-                let final_total_pixel_brightness = scaled_colors.iter().fold(0.0, |acc, color| {
-                    acc + color[0] as f64 + color[1] as f64 + color[2] as f64
-                }) / (255.0 * 3.0);
+                    let final_total_pixel_brightness =
+                        scaled_colors.iter().fold(0.0, |acc, color| {
+                            acc + color[0] as f64 + color[1] as f64 + color[2] as f64
+                        }) / (255.0 * 3.0);
 
-                // println!(
-                //     "total_pixel_brightness={:?}, scale_down_factor={:?}, final_total_pixel_brightness={:?}",
-                //     total_pixel_brightness, scale_down_factor, final_total_pixel_brightness
-                // );
+                    // println!(
+                    //     "total_pixel_brightness={:?}, scale_down_factor={:?}, final_total_pixel_brightness={:?}",
+                    //     total_pixel_brightness, scale_down_factor, final_total_pixel_brightness
+                    // );
+                }
             }
 
             let now = Instant::now();
