@@ -261,7 +261,7 @@ fn start_http_server() {
                         tokio::sync::mpsc::channel(8);
 
                     let (_addr, server) = warp::serve(frontend_static_files.or(hello).or(goodbye))
-                        .bind_with_graceful_shutdown(([127, 0, 0, 1], port), async move {
+                        .bind_with_graceful_shutdown(([0, 0, 0, 0], port), async move {
                             http_server_shutdown_receiver.recv().await;
                         });
 
