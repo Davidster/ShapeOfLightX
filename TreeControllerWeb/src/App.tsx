@@ -1,5 +1,4 @@
-import { useCallback, useRef, useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useCallback, useState } from "react";
 import Tree from "/tree.svg";
 import "./App.css";
 
@@ -11,18 +10,10 @@ type FixedLedPosition = {
   z: LedCoord;
 };
 
-type Animation = {
-  frames: Array<Array<[number, number, number, number]>>;
-  should_loop: boolean;
-};
-
 const LED_COUNT = 300;
 const SERVER_PORT = 8000;
 const DEFAULT_BRIGHTNESS = 125;
 const RPI_IP = "192.168.2.98";
-
-const normVec = (vec: number[]) =>
-  Math.sqrt(vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]);
 
 const hslToRgb = (h: number, s: number, l: number) => {
   let r, g, b;
@@ -188,17 +179,6 @@ const getLedsBoundingBox = (positions: FixedLedPosition[]) => {
   };
 };
 
-const getPlaneHeight2 = (
-  normal: [number, number, number],
-  planeY0: number,
-  ledX: number,
-  ledZ: number,
-) => {
-  const [a, b, c] = normal;
-  const d = -(b * planeY0);
-  return (-d - a * ledX - c * ledZ) / b;
-};
-
 const rotatePointAroundTreeCenter = (
   pitch: number,
   roll: number,
@@ -274,16 +254,11 @@ const rotateTreeRandomly = () => {
 
 function App() {
   const [errorMessage, setErrorMessage] = useState<string>();
-  const latestBrightnessRef = useRef<number>();
+  const [brightness, setBrightness] = useState(DEFAULT_BRIGHTNESS);
   const [speed, setSpeed] = useState(0.1);
 
   const sendFrames = useCallback(
     async (frames: number[][][], loop: boolean = true): Promise<void> => {
-      const fallbackBrightness =
-        latestBrightnessRef.current === undefined
-          ? DEFAULT_BRIGHTNESS
-          : Math.round((latestBrightnessRef.current / 100) * 255);
-
       setErrorMessage(undefined);
 
       const rawFrameData = new Uint8Array([
@@ -291,7 +266,7 @@ function App() {
         ...frames.flatMap((frame) =>
           frame.flatMap((color) =>
             color.length === 3
-              ? [color[0], color[1], color[2], fallbackBrightness]
+              ? [color[0], color[1], color[2], brightness]
               : [color[0], color[1], color[2], color[3]],
           ),
         ),
@@ -323,7 +298,7 @@ function App() {
         );
       }
     },
-    [],
+    [brightness],
   );
 
   const sendAnimation = useCallback(
@@ -366,6 +341,7 @@ function App() {
       [
         Array(LED_COUNT)
           .fill(null)
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           .map((_) => [...hslToRgbFixed(Math.random())]),
       ],
       // .map((_, i) =>
@@ -373,12 +349,14 @@ function App() {
       //     ? [...hslToRgbFixed(Math.random()), 100]
       //     : [0, 0, 0, 0],
       // ),
+      false,
     );
   };
 
   const sendRandomLinearBlend = async () => {
     const random_colors = Array(LED_COUNT + 1)
       .fill(null)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .map((_) => [
         ...hslToRgbFixed(Math.random()),
         // 100 + Math.random() * 150
@@ -404,12 +382,13 @@ function App() {
           );
         return averageColor;
       });
-    await sendFrames([colors]);
+    await sendFrames([colors], false);
   };
 
   const animateRandomLinearBlend = () => {
     const randomHsvs = Array(LED_COUNT + 1)
       .fill(null)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       .map((_) => [
         Math.random(),
         //  100 + Math.random() * 150
@@ -610,10 +589,6 @@ function App() {
 
     const ledsBoundingBox = getLedsBoundingBox(ledPositions);
 
-    const rainDropColors = [
-      [0, 255, 0],
-      [0, 0, 255],
-    ];
     let rainDrops: RainDrop[] = [];
 
     const spawnRainDrop = () => {
@@ -765,36 +740,46 @@ function App() {
 
   const showAllColors = useCallback(async () => {
     const white_pixel = -1;
-    await sendFrames([
-      Array(LED_COUNT)
-        .fill(null)
-        .map((_, i) =>
-          i === white_pixel
-            ? [255, 255, 255]
-            : [...hslToRgb(i / LED_COUNT, 1.0, 0.5)],
-        ),
-    ]);
+    await sendFrames(
+      [
+        Array(LED_COUNT)
+          .fill(null)
+          .map((_, i) =>
+            i === white_pixel
+              ? [255, 255, 255]
+              : [...hslToRgb(i / LED_COUNT, 1.0, 0.5)],
+          ),
+      ],
+      false,
+    );
   }, [sendFrames]);
 
   const showAllColorsFixed = useCallback(async () => {
     const white_pixel = -1;
-    await sendFrames([
-      Array(LED_COUNT)
-        .fill(null)
-        .map((_, i) =>
-          i === white_pixel
-            ? [255, 255, 255]
-            : [...hslToRgbFixed(i / LED_COUNT)],
-        ),
-    ]);
+    await sendFrames(
+      [
+        Array(LED_COUNT)
+          .fill(null)
+          .map((_, i) =>
+            i === white_pixel
+              ? [255, 255, 255]
+              : [...hslToRgbFixed(i / LED_COUNT)],
+          ),
+      ],
+      false,
+    );
   }, [sendFrames]);
 
   const clear = async () => {
-    await sendFrames([
-      Array(LED_COUNT)
-        .fill(null)
-        .map((_) => [0, 0, 0, 0]),
-    ]);
+    await sendFrames(
+      [
+        Array(LED_COUNT)
+          .fill(null)
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          .map((_) => [0, 0, 0, 0]),
+      ],
+      false,
+    );
   };
 
   return (
@@ -812,13 +797,17 @@ function App() {
             padding: "0 16",
           }}
         >
-          <div>Brightness</div>
+          <div>Brightness: {brightness}</div>
           <input
+            style={{
+              width: "80%",
+            }}
             type="range"
             min={0}
-            max={100}
+            max={255}
+            value={brightness}
             onChange={(event) => {
-              latestBrightnessRef.current = parseInt(event.target.value);
+              setBrightness(parseInt(event.target.value));
             }}
           />
         </div>
@@ -832,6 +821,9 @@ function App() {
         >
           <div>Speed: {speed.toFixed(2)}</div>
           <input
+            style={{
+              width: "80%",
+            }}
             type="range"
             min={1}
             max={500}
@@ -909,6 +901,10 @@ const Button: React.FC<ButtonProps> = ({ onClick, label, disabled }) => (
     disabled={disabled}
     style={{
       backgroundColor: disabled ? "#999999" : "#9E8FCB",
+      color: "white",
+      fontWeight: "normal",
+      width: "80%",
+      alignSelf: "center",
     }}
   >
     {label}
