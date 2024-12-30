@@ -288,12 +288,13 @@ fn start_http_server() {
                             ))
                             .and(warp::body::bytes())
                             .map(move |body_bytes: warp::hyper::body::Bytes| {
+                                let first_byte = *body_bytes.first().unwrap();
                                 let frames: Vec<PixelColor> =
-                                    bytemuck::cast_slice(&body_bytes).to_vec();
+                                    bytemuck::cast_slice(&body_bytes[1..]).to_vec();
 
                                 *shared_animation_1.lock().unwrap() = Animation {
                                     frames,
-                                    should_loop: true,
+                                    should_loop: first_byte != 0,
                                 };
                                 *shared_animation_id_1.lock().unwrap() += 1;
                                 warp::reply()
