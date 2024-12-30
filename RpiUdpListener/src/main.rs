@@ -392,7 +392,8 @@ fn start_http_server() {
 
                 match received_animation.frames.is_empty() {
                     false => {
-                        let animation_frame_count = received_animation.frames.len() / (LED_COUNT);
+                        let animation_frame_count =
+                            (received_animation.frames.len() / LED_COUNT).max(1);
 
                         if !received_animation.should_loop
                             && animation_frame_counter == animation_frame_count
