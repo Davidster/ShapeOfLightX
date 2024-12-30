@@ -391,8 +391,7 @@ fn start_http_server() {
 
                 match received_animation.frames.is_empty() {
                     false => {
-                        let animation_frame_count = received_animation.frames.len()
-                            / (LED_COUNT * std::mem::size_of::<PixelColor>());
+                        let animation_frame_count = received_animation.frames.len() / (LED_COUNT);
 
                         if !received_animation.should_loop
                             && animation_frame_counter == animation_frame_count
@@ -411,12 +410,8 @@ fn start_http_server() {
                                 frame_index
                             );
                             Some(
-                                received_animation.frames[(frame_index
-                                    * LED_COUNT
-                                    * std::mem::size_of::<PixelColor>())
-                                    ..((frame_index + 1)
-                                        * LED_COUNT
-                                        * std::mem::size_of::<PixelColor>())]
+                                received_animation.frames
+                                    [(frame_index * LED_COUNT)..((frame_index + 1) * LED_COUNT)]
                                     .to_vec(),
                             )
                         }
