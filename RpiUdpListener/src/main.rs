@@ -391,19 +391,23 @@ fn start_http_server() {
 
                 match received_animation.frames.is_empty() {
                     false => {
+                        let animation_frame_count = received_animation.frames.len()
+                            / (LED_COUNT * std::mem::size_of::<PixelColor>());
+
                         if !received_animation.should_loop
-                            && animation_frame_counter == received_animation.frames.len()
+                            && animation_frame_counter == animation_frame_count
                         {
                             None
                         } else {
                             let frame_index = if received_animation.should_loop {
-                                animation_frame_counter % received_animation.frames.len()
+                                animation_frame_counter % animation_frame_count
                             } else {
-                                animation_frame_counter.min(received_animation.frames.len() - 1)
+                                animation_frame_counter.min(animation_frame_count - 1)
                             };
                             dbg!(
                                 animation_frame_counter,
                                 received_animation.frames.len(),
+                                animation_frame_count,
                                 frame_index
                             );
                             Some(
@@ -452,8 +456,6 @@ fn start_http_server() {
                 }
 
                 render(&mut controller, &colors.to_vec());
-
-                animation_frame_counter += 1;
 
                 let now = Instant::now();
                 let current_frame_time_nanos = now.duration_since(frame_start).as_nanos();
