@@ -290,6 +290,7 @@ fn start_http_server() {
                             .map(move |body_bytes: warp::hyper::body::Bytes| {
                                 let frames: Vec<PixelColor> =
                                     bytemuck::cast_slice(&body_bytes).to_vec();
+
                                 *shared_animation_1.lock().unwrap() = Animation {
                                     frames,
                                     should_loop: true,
@@ -400,7 +401,15 @@ fn start_http_server() {
                             } else {
                                 animation_frame_counter.min(received_animation.frames.len() - 1)
                             };
-                            Some(received_animation.frames[frame_index].clone())
+                            Some(
+                                received_animation.frames[(frame_index
+                                    * LED_COUNT
+                                    * std::mem::size_of::<PixelColor>())
+                                    ..((frame_index + 1)
+                                        * LED_COUNT
+                                        * std::mem::size_of::<PixelColor>())]
+                                    .to_vec(),
+                            )
                         }
                     }
                     true => None,
@@ -411,10 +420,10 @@ fn start_http_server() {
                 animation_frame_counter += 1;
             }
 
-            let chosen_frame = if !received_udp_frame.is_empty() {
-                Some(received_udp_frame)
+            let chosen_frame: Option<&[PixelColor]> = if !received_udp_frame.is_empty() {
+                Some(&received_udp_frame)
             } else {
-                received_animation_frame
+                received_animation_frame.as_ref()
             };
 
             if let Some(frame) = chosen_frame {
