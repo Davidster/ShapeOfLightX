@@ -423,7 +423,7 @@ fn start_http_server() {
             let chosen_frame: Option<&[PixelColor]> = if !received_udp_frame.is_empty() {
                 Some(&received_udp_frame)
             } else {
-                received_animation_frame.as_ref()
+                received_animation_frame.as_deref()
             };
 
             if let Some(frame) = chosen_frame {
