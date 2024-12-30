@@ -401,6 +401,11 @@ fn start_http_server() {
                             } else {
                                 animation_frame_counter.min(received_animation.frames.len() - 1)
                             };
+                            dbg!(
+                                animation_frame_counter,
+                                received_animation.frames.len(),
+                                frame_index
+                            );
                             Some(
                                 received_animation.frames[(frame_index
                                     * LED_COUNT
