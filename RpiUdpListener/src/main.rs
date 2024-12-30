@@ -234,7 +234,7 @@ fn brightness_breathe_animation() {
 
 #[derive(Deserialize, Serialize, Default, Debug, Clone)]
 struct Animation {
-    frames: Vec<Vec<PixelColor>>,
+    frames: Vec<PixelColor>, // flattened list
     should_loop: bool,
 }
 
@@ -286,9 +286,14 @@ fn start_http_server() {
                                 .try_into()
                                 .unwrap(),
                             ))
-                            .and(warp::body::json())
-                            .map(move |animation: Animation| {
-                                *shared_animation_1.lock().unwrap() = animation;
+                            .and(warp::body::bytes())
+                            .map(move |body_bytes: warp::hyper::body::Bytes| {
+                                let frames: Vec<PixelColor> =
+                                    bytemuck::cast_slice(&body_bytes).to_vec();
+                                *shared_animation_1.lock().unwrap() = Animation {
+                                    frames,
+                                    should_loop: true,
+                                };
                                 *shared_animation_id_1.lock().unwrap() += 1;
                                 warp::reply()
                             })
@@ -391,7 +396,7 @@ fn start_http_server() {
                             None
                         } else {
                             let frame_index = if received_animation.should_loop {
-                                animation_frame_counter & received_animation.frames.len()
+                                animation_frame_counter % received_animation.frames.len()
                             } else {
                                 animation_frame_counter.min(received_animation.frames.len() - 1)
                             };
