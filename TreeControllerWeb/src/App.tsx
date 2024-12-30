@@ -644,7 +644,7 @@ function App() {
 
       sparkles.push({
         t: 0,
-        decay: 1 + Math.random() * 4,
+        decay: 1 + Math.random() * 2,
         position: {
           x: randomLedPosition.x.value,
           y: randomLedPosition.y.value,
@@ -665,7 +665,7 @@ function App() {
       if (now - lastSpawnTime > nextSpawnDelay && pctComplete < 0.95) {
         spawnSparkle();
         lastSpawnTime = now;
-        nextSpawnDelay = Math.floor(Math.random() * 10);
+        nextSpawnDelay = Math.floor(Math.random() * 30);
       }
 
       const frame = Array(LED_COUNT)
