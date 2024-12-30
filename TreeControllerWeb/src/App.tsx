@@ -305,11 +305,10 @@ function App() {
     async (
       getFrame: (pctComplete: number) => number[][],
       lengthMillis: number,
-      fps: number = 60,
       loop: boolean = true,
       appendReverse: boolean = false,
     ): Promise<void> => {
-      const frameTime = 1000 / fps;
+      const frameTime = 1000 / 60;
       const frame_count = Math.round(lengthMillis / (frameTime * speed * 10.0));
 
       // console.log({ frameTime, frames, lengthMillis });
@@ -433,7 +432,6 @@ function App() {
           });
       },
       5000,
-      undefined,
       true,
       true,
     );
@@ -510,7 +508,6 @@ function App() {
           });
       },
       timePerCrossSection * crossSectionCount,
-      undefined,
       true,
     );
   };
@@ -571,10 +568,54 @@ function App() {
           });
       },
       6000,
-      undefined,
       true,
       true,
     );
+  };
+
+  const candyCane = async (addBlueStripe: boolean) => {
+    const ledsBoundingBox = getLedsBoundingBox(ledPositions);
+
+    await sendAnimation((pctComplete) => {
+      const bins = 2;
+      return Array(LED_COUNT)
+        .fill(null)
+        .map((_, i) => {
+          const white = [255, 255, 255];
+          const red = [0, 0, 255];
+          const blue = [255, 0, 0];
+
+          const ledPos = ledPositions[i];
+
+          const center = {
+            x: ledsBoundingBox.min.x + ledsBoundingBox.width / 2,
+            y: ledsBoundingBox.min.y + ledsBoundingBox.height * 0.5,
+            z: ledsBoundingBox.min.z + ledsBoundingBox.depth / 2,
+          };
+          const dx = ledPos.x.value - center.x;
+          const dz = ledPos.z.value - center.z;
+
+          const angle =
+            Math.atan2(dx, dz) -
+            (pctComplete * Math.PI * 16.0) / bins +
+            ledPos.y.value * 0.004;
+
+          const lerpFactor = Math.sin(angle * bins) * 0.5 + 0.5;
+
+          const secondColor =
+            addBlueStripe && Math.abs(angle) % (Math.PI * 2.0) > Math.PI
+              ? blue
+              : red;
+
+          return Array(3)
+            .fill(null)
+            .map(
+              (__, channel) =>
+                lerpFactor * white[channel] +
+                (1 - lerpFactor) * secondColor[channel],
+            );
+        });
+    }, 5000);
   };
 
   const rain = async () => {
@@ -708,7 +749,6 @@ function App() {
         return out;
       },
       10000,
-      undefined,
       true,
     );
   };
@@ -732,7 +772,6 @@ function App() {
           ]);
       },
       3000 / SPEED,
-      undefined,
       true,
       false,
     );
@@ -843,17 +882,17 @@ function App() {
         }}
       >
         <Button
-          label="Each LED random color"
+          label="Each LED Random Color"
           onClick={sendRandomColors}
           disabled={false}
         />
         <Button
-          label="Random linear blend"
+          label="Random Linear Blend"
           onClick={sendRandomLinearBlend}
           disabled={false}
         />
         <Button
-          label="Random linear blend animated"
+          label="Random Linear Blend Animated"
           onClick={animateRandomLinearBlend}
           disabled={false}
         />
@@ -869,20 +908,26 @@ function App() {
         />
         <Button label="Rain" onClick={rain} disabled={false} />
         <Button
-          label="Animate all colors"
+          label="Candy Cane"
+          onClick={() => candyCane(false)}
+          disabled={false}
+        />
+        <Button
+          label="Barber Shop"
+          onClick={() => candyCane(true)}
+          disabled={false}
+        />
+        <Button
+          label="Animate All Colors"
           onClick={animateAllColors}
           disabled={false}
         />
         <Button
-          label="Show all colors with fixed HSL"
+          label="Fixed HSL"
           onClick={showAllColorsFixed}
           disabled={false}
         />
-        <Button
-          label="Show all colors with default HSL"
-          onClick={showAllColors}
-          disabled={false}
-        />
+        <Button label="Default HSL" onClick={showAllColors} disabled={false} />
         <Button label="Clear" onClick={clear} disabled={false} />
       </div>
     </>
