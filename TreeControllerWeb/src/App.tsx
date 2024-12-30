@@ -618,6 +618,95 @@ function App() {
     }, 5000);
   };
 
+  const sparkles = async () => {
+    type Sparkle = {
+      t: number;
+      decay: number;
+      position: {
+        x: number;
+        y: number;
+        z: number;
+      };
+    };
+
+    let nextSpawnDelay = 25;
+    const maxSparkleRadius = 20;
+
+    const dim_white = [0, 0, 0];
+    const yellow = [0, 80, 245];
+
+    let sparkles: Sparkle[] = [];
+
+    const spawnSparkle = () => {
+      const randomLedIndex = Math.floor(Math.random() * LED_COUNT);
+      // spawn the sparkles right on the LEDs
+      const randomLedPosition = ledPositions[randomLedIndex];
+
+      sparkles.push({
+        t: 0,
+        decay: 1 + Math.random() * 4,
+        position: {
+          x: randomLedPosition.x.value,
+          y: randomLedPosition.y.value,
+          z: randomLedPosition.z.value,
+        },
+      });
+    };
+
+    // spawnSparkle();
+
+    let lastFrameTime = 0;
+    let lastSpawnTime = -1;
+    await sendAnimation((pctComplete) => {
+      const now = pctComplete * 10000;
+      const dt = now - lastFrameTime;
+      lastFrameTime = now;
+
+      if (now - lastSpawnTime > nextSpawnDelay && pctComplete < 0.95) {
+        spawnSparkle();
+        lastSpawnTime = now;
+        nextSpawnDelay = Math.floor(Math.random() * 10);
+      }
+
+      const frame = Array(LED_COUNT)
+        .fill(null)
+        .map((_, i) => {
+          let sparkleBrightness = 0;
+
+          const ledPos = ledPositions[i];
+
+          sparkles.forEach((sparkle) => {
+            const dY = ledPos.y.value - sparkle.position.y;
+            const dX = ledPos.x.value - sparkle.position.x;
+            const dZ = ledPos.z.value - sparkle.position.z;
+            const distanceFromSparkle = Math.sqrt(dX * dX + dZ * dZ + dY * dY);
+
+            sparkleBrightness +=
+              (1 - Math.min(distanceFromSparkle / maxSparkleRadius, 1)) *
+              Math.sin(sparkle.t * Math.PI);
+          });
+
+          const lerpFactor = Math.min(sparkleBrightness, 1);
+
+          return Array(3)
+            .fill(null)
+            .map(
+              (__, channel) =>
+                lerpFactor * yellow[channel] +
+                (1 - lerpFactor) * dim_white[channel],
+            );
+        });
+
+      sparkles.forEach((sparkle) => {
+        sparkle.t += dt * 0.001 * sparkle.decay;
+      });
+
+      sparkles = sparkles.filter((sparkle) => sparkle.t <= 1.0);
+
+      return frame;
+    }, 20000);
+  };
+
   const rain = async () => {
     type RainDrop = {
       speed: number;
@@ -917,6 +1006,7 @@ function App() {
           onClick={() => candyCane(true)}
           disabled={false}
         />
+        <Button label="Sparkles" onClick={sparkles} disabled={false} />
         <Button
           label="Animate All Colors"
           onClick={animateAllColors}
