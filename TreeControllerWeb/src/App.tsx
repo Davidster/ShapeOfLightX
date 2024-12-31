@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import Tree from "/tree.svg";
 import "./App.css";
+import { gzipSync } from "fflate";
 
 import rawLedPositions, { LedCoord } from "./rawLedPositions";
 
@@ -272,9 +273,14 @@ function App() {
         ),
       ]);
 
+      const rawFrameDataCompressed = gzipSync(rawFrameData);
+
       console.log("Sending frames", frames);
       console.log(
         `Frame data size: ${(rawFrameData.length / 1000).toFixed(2)}kb`,
+      );
+      console.log(
+        `Compressed frame data size: ${(rawFrameDataCompressed.length / 1000).toFixed(2)}kb`,
       );
 
       try {
@@ -282,9 +288,10 @@ function App() {
           `http://${RPI_IP}:${SERVER_PORT}/treecontroller-api/animation`,
           {
             method: "POST",
-            body: rawFrameData,
+            body: rawFrameDataCompressed,
             headers: {
               "Content-Type": "application/octet-stream",
+              "Content-Encoding": "gzip",
             },
           },
         );

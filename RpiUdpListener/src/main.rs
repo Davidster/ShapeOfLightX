@@ -1,14 +1,16 @@
+use flate2::read::GzDecoder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use warp::Filter;
 
 use std::fmt;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::{thread, time::Duration, time::Instant};
+use warp::hyper::body::Bytes;
 
 const LED_COUNT: usize = 300;
 const COLOR_CHANNELS: usize = 4;
@@ -70,7 +72,7 @@ impl<T: fmt::Display> fmt::Display for OptFmt<T> {
     }
 }
 
-// adapter from https://github.com/seanmonstar/warp/blob/1cbf029b1867505e1e6f75ae9674613ae3533710/src/filters/log.rs#L33
+// adapted from https://github.com/seanmonstar/warp/blob/1cbf029b1867505e1e6f75ae9674613ae3533710/src/filters/log.rs#L33
 pub fn make_warp_log_filter(
 ) -> warp::filters::log::Log<impl Fn(warp::filters::log::Info<'_>) + Copy> {
     let func = move |info: warp::filters::log::Info<'_>| {
@@ -86,6 +88,49 @@ pub fn make_warp_log_filter(
         );
     };
     warp::filters::log::custom(func)
+}
+
+async fn decompress_body(
+    encoding: Option<String>,
+    body_bytes: Bytes,
+) -> Result<Bytes, warp::Rejection> {
+    match encoding.as_deref() {
+        Some("gzip" | "x-gzip") => {
+            log::info!(
+                "Body received with compressed size: {:.2}kb",
+                body_bytes.len() as f32 / 1000.0
+            );
+            let decompressed = tokio::task::spawn_blocking(move || {
+                let mut decompressed = Vec::new();
+                let mut decoder = GzDecoder::new(body_bytes.as_ref());
+                decoder.read_to_end(&mut decompressed).map_err(|err| {
+                    log::error!("Failed to decompress: {err}");
+                    warp::reject::reject()
+                })?;
+                Result::<_, warp::Rejection>::Ok(Bytes::from(decompressed))
+            })
+            .await
+            .map_err(|err| {
+                log::error!("Failed to join decompression task: {err}");
+                warp::reject::reject()
+            })??;
+            Ok(decompressed)
+        }
+        Some(encoding) => {
+            log::error!("Unknown encoding: {encoding}");
+            Err(warp::reject::reject())
+        }
+        _ => Ok(body_bytes),
+    }
+}
+
+pub fn body_bytes_with_decompression(
+) -> impl Filter<Extract = (Bytes,), Error = warp::Rejection> + Clone {
+    warp::header::optional("content-encoding")
+        .and(warp::body::bytes())
+        .and_then(|encoding: Option<String>, body_bytes: Bytes| async move {
+            decompress_body(encoding, body_bytes).await
+        })
 }
 
 fn main() {
@@ -338,8 +383,8 @@ fn start_http_server() {
                                 .try_into()
                                 .unwrap(),
                             ))
-                            .and(warp::body::bytes())
-                            .map(move |body_bytes: warp::hyper::body::Bytes| {
+                            .and(body_bytes_with_decompression())
+                            .map(move |body_bytes: Bytes| {
                                 let first_byte = *body_bytes.first().unwrap();
                                 let frames: Vec<PixelColor> =
                                     bytemuck::cast_slice(&body_bytes[1..]).to_vec();
@@ -362,6 +407,7 @@ fn start_http_server() {
                                 warp::cors()
                                     .allow_any_origin()
                                     .allow_headers(&[warp::http::header::CONTENT_TYPE])
+                                    .allow_headers(&[warp::http::header::CONTENT_ENCODING])
                                     .allow_methods(&[warp::http::method::Method::POST]),
                             );
 
@@ -373,7 +419,8 @@ fn start_http_server() {
                                 .or(hello)
                                 .or(goodbye)
                                 .or(post_animation)
-                                .with(make_warp_log_filter()),
+                                .with(make_warp_log_filter())
+                                .with(warp::compression::deflate()),
                         )
                         .bind_with_graceful_shutdown(([0, 0, 0, 0], port), async move {
                             http_server_shutdown_receiver.recv().await;
