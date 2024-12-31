@@ -2,6 +2,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use warp::Filter;
 
+use std::fmt;
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,8 +51,59 @@ fn calc_color_with_brightness(color: &[f64; 3], brightness: f64) -> [u8; 3] {
     ]
 }
 
+fn env_var_is_defined(var: &str) -> bool {
+    match std::env::var(var) {
+        Ok(val) => !val.is_empty(),
+        Err(_) => false,
+    }
+}
+
+struct OptFmt<T>(Option<T>);
+
+impl<T: fmt::Display> fmt::Display for OptFmt<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(ref t) = self.0 {
+            fmt::Display::fmt(t, f)
+        } else {
+            f.write_str("-")
+        }
+    }
+}
+
+// adapter from https://github.com/seanmonstar/warp/blob/1cbf029b1867505e1e6f75ae9674613ae3533710/src/filters/log.rs#L33
+pub fn make_warp_log_filter(
+) -> warp::filters::log::Log<impl Fn(warp::filters::log::Info<'_>) + Copy> {
+    let func = move |info: warp::filters::log::Info<'_>| {
+        log::info!(
+            "{} \"{} {} {:?}\" {} \"{}\" {:?}",
+            OptFmt(info.remote_addr()),
+            info.method(),
+            info.path(),
+            info.version(),
+            info.status().as_u16(),
+            OptFmt(info.referer()),
+            info.elapsed(),
+        );
+    };
+    warp::filters::log::custom(func)
+}
+
 fn main() {
-    println!("MAX_FULL_BRIGHTNESS_LEDS={:?}", MAX_FULL_BRIGHTNESS_LEDS);
+    if !env_var_is_defined("RUST_BACKTRACE") {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+
+    if env_var_is_defined("RUST_LOG") {
+        env_logger::init();
+    } else {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Error)
+            .filter(Some(env!("CARGO_PKG_NAME")), log::LevelFilter::Debug)
+            .filter(Some(env!("CARGO_BIN_NAME")), log::LevelFilter::Debug)
+            .filter(Some("warp"), log::LevelFilter::Debug)
+            .init();
+    }
+
     start_http_server();
 }
 
@@ -94,7 +146,7 @@ fn render(controller: &mut rs_ws281x::Controller, colors: &Vec<[u8; 3]>) {
     };
     let scale_down = |val| (val as f64 * scale_down_factor).round() as u8;
 
-    // println!("scale_down_factor={:?}", scale_down_factor);
+    // log::info!("scale_down_factor={:?}", scale_down_factor);
 
     let leds = controller.leds_mut(0);
     for led_index in 0..leds.len() {
@@ -116,7 +168,7 @@ fn photograph_pixels() {
     let program_cancelled_2 = program_cancelled.clone();
 
     ctrlc::set_handler(move || {
-        println!("Program cancelled");
+        log::info!("Program cancelled");
         program_cancelled_1.store(true, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
@@ -160,7 +212,7 @@ fn brightness_breathe_animation() {
     let program_cancelled_2 = program_cancelled.clone();
 
     ctrlc::set_handler(move || {
-        println!("Program cancelled");
+        log::info!("Program cancelled");
         program_cancelled_1.store(true, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
@@ -168,7 +220,7 @@ fn brightness_breathe_animation() {
     thread::spawn(move || {
         let mut controller = build_led_controller();
 
-        println!("Number of LEDs: {:?}", controller.leds_mut(0).len());
+        log::info!("Number of LEDs: {:?}", controller.leds_mut(0).len());
 
         // [B, G, R]
         let color = [255.0, 255.0, 255.0];
@@ -199,7 +251,7 @@ fn brightness_breathe_animation() {
                 }
             }
 
-            // println!("Brightness: {:?}, Color: {:?}", brightness, colors[30]);
+            // log::info!("Brightness: {:?}, Color: {:?}", brightness, colors[30]);
             render(&mut controller, &colors.to_vec());
             brightness += (if increasing { 1.0 } else { -1.0 }) * max_brightness / 100.0;
             if (brightness > max_brightness && increasing) {
@@ -214,8 +266,8 @@ fn brightness_breathe_animation() {
 
             if (i % (TARGET_FPS as i32) == 0) {
                 let fps = i as f32 / Instant::now().duration_since(start).as_secs_f32();
-                println!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
-                println!("Brightness: {:?}", brightness);
+                log::info!("Render rate: {:?}Hz, frametime: {:?}ms", fps, 1000.0 / fps);
+                log::info!("Brightness: {:?}", brightness);
             }
 
             let now = Instant::now();
@@ -292,9 +344,16 @@ fn start_http_server() {
                                 let frames: Vec<PixelColor> =
                                     bytemuck::cast_slice(&body_bytes[1..]).to_vec();
 
+                                let should_loop = first_byte != 0;
+
+                                log::info!(
+                                    "Body received with size: {:.2}kb",
+                                    body_bytes.len() as f32 / 1000.0
+                                );
+
                                 *shared_animation_1.lock().unwrap() = Animation {
                                     frames,
-                                    should_loop: first_byte != 0,
+                                    should_loop,
                                 };
                                 *shared_animation_id_1.lock().unwrap() += 1;
                                 warp::reply()
@@ -313,7 +372,8 @@ fn start_http_server() {
                             frontend_static_files
                                 .or(hello)
                                 .or(goodbye)
-                                .or(post_animation),
+                                .or(post_animation)
+                                .with(make_warp_log_filter()),
                         )
                         .bind_with_graceful_shutdown(([0, 0, 0, 0], port), async move {
                             http_server_shutdown_receiver.recv().await;
@@ -322,6 +382,7 @@ fn start_http_server() {
                         tokio::task::spawn(server);
 
                         tokio::signal::ctrl_c().await.unwrap();
+                        log::info!("Received Ctrl-C signal");
                         program_cancelled_1.store(true, Ordering::SeqCst);
                         http_server_shutdown_sender.send(()).await.unwrap();
                     });
@@ -352,7 +413,7 @@ fn start_http_server() {
                 }
                 Err(err) => {
                     if err.kind() != ErrorKind::WouldBlock && err.kind() != ErrorKind::TimedOut {
-                        println!("{:?}", err);
+                        log::info!("{:?}", err);
                     }
                 }
             }
@@ -432,7 +493,7 @@ fn start_http_server() {
                 for led_index in 0..colors.len() {
                     if led_index < frame.len() {
                         let received_color = frame[led_index];
-                        // println!("final_color = {:?}", final_color);
+                        // log::info!("final_color = {:?}", final_color);
                         colors[led_index] = calc_color_with_brightness(
                             &[
                                 received_color[0] as f64,
@@ -459,7 +520,7 @@ fn start_http_server() {
                         (TARGET_FRAME_TIME - current_frame_time_nanos) as u64,
                     ));
                 } else {
-                    println!(
+                    log::info!(
                         "Warning: render took too long: {:?}",
                         now.duration_since(frame_start)
                     );
