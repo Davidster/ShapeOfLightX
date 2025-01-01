@@ -15,6 +15,7 @@ const LED_COUNT = 300;
 const SERVER_PORT = 8000;
 const DEFAULT_BRIGHTNESS = 125;
 const RPI_IP = "192.168.2.98";
+const USE_GZIP = true;
 
 const hslToRgb = (h: number, s: number, l: number) => {
   let r, g, b;
@@ -288,10 +289,10 @@ function App() {
           `http://${RPI_IP}:${SERVER_PORT}/treecontroller-api/animation`,
           {
             method: "POST",
-            body: rawFrameDataCompressed,
+            body: USE_GZIP ? rawFrameDataCompressed : rawFrameData,
             headers: {
               "Content-Type": "application/octet-stream",
-              "Content-Encoding": "gzip",
+              ...(USE_GZIP ? { "Content-Encoding": "gzip" } : undefined),
             },
           },
         );
